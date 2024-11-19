@@ -127,6 +127,42 @@ app.post('/login', async (req, res) => {
     }
 });
 
+app.post('/create-post', upload.single('image'), async (req, res) => {
+    const { description, login } = req.body;
+    const imageUrl = req.file ? req.file.filename : null;
+
+    if (!description  !login  !imageUrl) {
+        return res.status(400).json({ error: 'Описание, логин и изображение обязательны!' });
+    }
+
+    try {
+        // Получение ID пользователя по логину
+        const userResult = await pool.query('SELECT id FROM "user" WHERE login = $1', [login]);
+        if (userResult.rowCount === 0) {
+            return res.status(404).json({ error: 'Пользователь не найден!' });
+        }
+        const userId = userResult.rows[0].id;
+
+        // Вставка поста в таблицу post
+        const postResult = await pool.query(
+            'INSERT INTO post (date, description, image_url) VALUES (NOW(), $1, $2) RETURNING id_post',
+            [description, imageUrl]
+        );
+        const postId = postResult.rows[0].id_post;
+
+        // Вставка данных в таблицу user_post
+        await pool.query(
+            'INSERT INTO user_post (id_user, id_post) VALUES ($1, $2)',
+            [userId, postId]
+        );
+
+        res.status(201).json({ message: 'Пост успешно создан!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка создания поста!' });
+    }
+});
+
 // Эндпоинт для получения изображения поста
 app.get('/images/posts/:filename', (req, res) => {
     const { filename } = req.params;
