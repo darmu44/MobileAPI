@@ -131,7 +131,7 @@ app.post('/create-post', upload.single('image'), async (req, res) => {
     const { description, login } = req.body;
     const imageUrl = req.file ? req.file.filename : null;
 
-    if (!description  !login  !imageUrl) {
+    if (!description || !login || !imageUrl) {
         return res.status(400).json({ error: 'Описание, логин и изображение обязательны!' });
     }
 
