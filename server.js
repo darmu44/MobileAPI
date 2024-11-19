@@ -92,7 +92,7 @@ app.post('/get-profile', async (req, res) => {
       }
   
       // Получаем полный URL для аватара
-      const avatarUrl = result.rows[0].avatar_url ? `https://mobileapi-ajlv.onrender.com/images/avatars/${result.rows[0].avatar_url}` : null;
+      const avatarUrl = result.rows[0].avatar_url ? `https://mobileapi-csev.onrender.com/images/avatars/${result.rows[0].avatar_url}` : null;
   
       res.json({
         login: result.rows[0].login,
