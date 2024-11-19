@@ -163,35 +163,6 @@ app.post('/create-post', upload.single('image'), async (req, res) => {
     }
 });
 
-// Endpoint to fetch all posts
-app.get('/get-posts', async (req, res) => {
-    try {
-        // Query to fetch all posts along with associated user information (if needed)
-        const result = await pool.query(`
-            SELECT p.id_post, p.date, p.description, p.image_url
-            FROM post p
-            ORDER BY p.date DESC
-        `);
-
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Нет постов для отображения!' });
-        }
-
-        // Map posts to include the image URL path correctly
-        const posts = result.rows.map(post => ({
-            id_post: post.id_post,
-            date: post.date,
-            description: post.description,
-            image_url: post.image_url ? `http://79.174.95.226:3000/images/posts/${post.image_url}` : null
-        }));
-
-        res.json({ posts });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка получения постов!' });
-    }
-});
-
 // Эндпоинт для получения изображения поста
 app.get('/images/posts/:filename', (req, res) => {
     const { filename } = req.params;
