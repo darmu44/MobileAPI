@@ -9,18 +9,30 @@ const fs = require('fs');
 
 const multer = require('multer');
 
-// Настройка multer для хранения изображений в папке 'images/avatars'
-const storage = multer.diskStorage({
+// Настройка multer для хранения изображений аватаров
+const avatarStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, path.join(__dirname, 'images', 'avatars')); // Папка для хранения
+        cb(null, path.join(__dirname, 'images', 'avatars')); // Папка для аватаров
     },
     filename: (req, file, cb) => {
-      const fileName = Date.now().toString() + path.extname(file.originalname);
-      cb(null, fileName); // Генерация уникального имени файла
+        const fileName = Date.now().toString() + path.extname(file.originalname);
+        cb(null, fileName); // Уникальное имя файла
     }
 });
 
-const upload = multer({ storage });
+// Настройка multer для хранения изображений постов
+const postStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, path.join(__dirname, 'images', 'posts')); // Папка для постов
+    },
+    filename: (req, file, cb) => {
+        const fileName = Date.now().toString() + path.extname(file.originalname);
+        cb(null, fileName); // Уникальное имя файла
+    }
+});
+
+const uploadAvatar = multer({ storage: avatarStorage });
+const uploadPost = multer({ storage: postStorage });
 
 const app = express();
 app.use(bodyParser.json());
@@ -62,7 +74,7 @@ app.post('/register', async (req, res) => {
 });
 
 // Обработчик маршрута /create-profile
-app.post('/create-profile', upload.single('avatar'), async (req, res) => {
+app.post('/create-profile', uploadAvatar.single('avatar'), async (req, res) => {
     const { login, name, description } = req.body;
     const avatarUrl = req.file ? `${req.file.filename}` : null;
 
@@ -127,7 +139,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-app.post('/create-post', upload.single('image'), async (req, res) => {
+app.post('/create-post', uploadPost.single('image'), async (req, res) => {
     const { description, login } = req.body;
     const imageUrl = req.file ? req.file.filename : null;
 
@@ -136,21 +148,18 @@ app.post('/create-post', upload.single('image'), async (req, res) => {
     }
 
     try {
-        // Получение ID пользователя по логину
         const userResult = await pool.query('SELECT id FROM "user" WHERE login = $1', [login]);
         if (userResult.rowCount === 0) {
             return res.status(404).json({ error: 'Пользователь не найден!' });
         }
         const userId = userResult.rows[0].id;
 
-        // Вставка поста в таблицу post
         const postResult = await pool.query(
             'INSERT INTO post (date, description, image_url) VALUES (NOW(), $1, $2) RETURNING id_post',
             [description, imageUrl]
         );
         const postId = postResult.rows[0].id_post;
 
-        // Вставка данных в таблицу user_post
         await pool.query(
             'INSERT INTO user_post (id_user, id_post) VALUES ($1, $2)',
             [userId, postId]
