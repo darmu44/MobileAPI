@@ -206,7 +206,7 @@ app.get('/get-posts', async (req, res) => {
 });
 
 // Endpoint to fetch all posts with user details
-app.get('/get-posts', async (req, res) => {
+app.get('/get-posts-profile', async (req, res) => {
     try {
         // Получаем логин пользователя из токена или сессии
         const login = req.query.login;  // Здесь предполагается, что логин передается в запросе
