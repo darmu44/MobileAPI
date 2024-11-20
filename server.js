@@ -181,7 +181,7 @@ app.get('/get-posts', async (req, res) => {
             FROM post p
             JOIN user_post up ON up.id_post = p.id_post
             JOIN "user" u ON u.id = up.id_user
-            ORDER BY p.date DESC
+            ORDER BY p.date ASC
         `);
 
         if (result.rowCount === 0) {
@@ -218,7 +218,7 @@ app.get('/get-posts-profile', async (req, res) => {
             JOIN user_post up ON up.id_post = p.id_post
             JOIN "user" u ON u.id = up.id_user
             WHERE u.login = $1
-            ORDER BY p.date DESC
+            ORDER BY p.date ASC
         `, [login]);
 
         if (result.rowCount === 0) {
