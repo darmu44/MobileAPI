@@ -206,41 +206,41 @@ app.get('/get-posts', async (req, res) => {
 });
 
 // Endpoint to fetch all posts with user details
-// app.get('/get-posts', async (req, res) => {
-    // try {
+app.get('/get-posts', async (req, res) => {
+    try {
         // Получаем логин пользователя из токена или сессии
-        // const login = req.query.login;  // Здесь предполагается, что логин передается в запросе
+        const login = req.query.login;  // Здесь предполагается, что логин передается в запросе
 
         // Запрос для получения постов с данными пользователя (имя, аватар)
-        // const result = await pool.query(`
-            // SELECT p.id_post, p.date, p.description, p.image_url, u.login, u.name, u.avatar_url
-            // FROM post p
-            // JOIN user_post up ON up.id_post = p.id_post
-            // JOIN "user" u ON u.id = up.id_user
-            // WHERE u.login = $1
-            // ORDER BY p.date DESC
-        // `, [login]);
+        const result = await pool.query(`
+            SELECT p.id_post, p.date, p.description, p.image_url, u.login, u.name, u.avatar_url
+            FROM post p
+            JOIN user_post up ON up.id_post = p.id_post
+            JOIN "user" u ON u.id = up.id_user
+            WHERE u.login = $1
+            ORDER BY p.date DESC
+        `, [login]);
 
-        // if (result.rowCount === 0) {
-            // return res.status(404).json({ error: 'Нет постов для отображения!' });
-        // }
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Нет постов для отображения!' });
+        }
 
         // Маппим посты с данными пользователя
-        // const posts = result.rows.map(post => ({
-            // id_post: post.id_post,
-            // date: post.date,
-            // description: post.description,
-            // image_url: post.image_url ? `http://79.174.95.226:3000/images/posts/${post.image_url}` : null,
-            // username: post.name,  // Имя пользователя
-            // avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null
-        // }));
+        const posts = result.rows.map(post => ({
+            id_post: post.id_post,
+            date: post.date,
+            description: post.description,
+            image_url: post.image_url ? `http://79.174.95.226:3000/images/posts/${post.image_url}` : null,
+            username: post.name,  // Имя пользователя
+            avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null
+        }));
 
-        // res.json({ posts });
-    // } catch (error) {
-        // console.error(error);
-        // res.status(500).json({ error: 'Ошибка получения постов!' });
-    // }
-// });
+        res.json({ posts });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка получения постов!' });
+    }
+});
 
 // Эндпоинт для получения изображения поста
 app.get('/images/posts/:filename', (req, res) => {
