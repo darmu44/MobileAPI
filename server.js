@@ -172,15 +172,15 @@ app.post('/create-post', uploadPost.single('image'), async (req, res) => {
     }
 });
 
-// Endpoint to fetch all posts
+// Endpoint to fetch all posts along with user details (name and avatar)
 app.get('/get-posts', async (req, res) => {
     try {
-        // Запрос для получения всех постов
+        // Запрос для получения всех постов с данными пользователя (имя, аватар)
         const result = await pool.query(`
-            SELECT p.id_post, p.date, p.description, p.image_url, u.name as username, u.avatar_url
+            SELECT p.id_post, p.date, p.description, p.image_url, u.name, u.avatar_url
             FROM post p
-            LEFT JOIN user_post up ON p.id_post = up.id_post
-            LEFT JOIN user u ON up.id_user = u.id
+            JOIN user_post up ON up.id_post = p.id_post
+            JOIN "user" u ON u.id = up.id_user
             ORDER BY p.date DESC
         `);
 
@@ -188,14 +188,14 @@ app.get('/get-posts', async (req, res) => {
             return res.status(404).json({ error: 'Нет постов для отображения!' });
         }
 
-        // Формируем список постов
+        // Маппим посты с данными пользователя
         const posts = result.rows.map(post => ({
             id_post: post.id_post,
             date: post.date,
             description: post.description,
             image_url: post.image_url ? `http://79.174.95.226:3000/images/posts/${post.image_url}` : null,
-            username: post.username,
-            avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null,
+            username: post.name,  // Имя пользователя
+            avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null
         }));
 
         res.json({ posts });
@@ -204,7 +204,6 @@ app.get('/get-posts', async (req, res) => {
         res.status(500).json({ error: 'Ошибка получения постов!' });
     }
 });
-
 
 // Endpoint to fetch all posts with user details
 // app.get('/get-posts', async (req, res) => {
