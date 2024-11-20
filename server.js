@@ -242,6 +242,27 @@ app.get('/get-posts-profile', async (req, res) => {
     }
 });
 
+app.post('/edit-profile', uploadAvatar.single('avatar'), async (req, res) => {
+    const { login, name, description } = req.body;
+    const avatarUrl = req.file ? `${req.file.filename}` : null;
+
+    try {
+        const updateResult = await pool.query(
+            'UPDATE "user" SET name = $1, description = $2, avatar_url = COALESCE($3, avatar_url), is_profile_complete = $4 WHERE login = $5 RETURNING *',
+            [name, description, avatarUrl, true, login]
+        );
+
+        if (updateResult.rowCount === 0) {
+            return res.status(404).json({ error: 'Пользователь не найден!' });
+        }
+
+        res.status(201).json({ message: 'Профиль успешно обновлён!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка изменения профиля!' });
+    }
+});
+
 // Эндпоинт для получения изображения поста
 app.get('/images/posts/:filename', (req, res) => {
     const { filename } = req.params;
