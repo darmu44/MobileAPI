@@ -6,8 +6,9 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-
 const multer = require('multer');
+const http = require('http');
+const socketIo = require('socket.io'); // Подключаем socket.io
 
 // Настройка multer для хранения изображений аватаров
 const avatarStorage = multer.diskStorage({
@@ -35,6 +36,9 @@ const uploadAvatar = multer({ storage: avatarStorage });
 const uploadPost = multer({ storage: postStorage });
 
 const app = express();
+const server = http.createServer(app); // Создаем HTTP-сервер
+const io = socketIo(server); // Инициализируем Socket.IO с HTTP-сервером
+
 app.use(bodyParser.json());
 app.use(cors());
 
@@ -47,6 +51,44 @@ const pool = new Pool({
     database: '2024_psql_dan',
     password: 'hq7L54hC9LEc7YzC',
     port: 5432,
+});
+
+// Настройка подключения WebSocket
+let users = {}; // Словарь для хранения подключенных пользователей
+
+io.on('connection', (socket) => {
+    console.log('A user connected: ' + socket.id);
+
+    // Регистрация пользователя
+    socket.on('register-user', (username) => {
+        users[username] = socket.id; // Привязываем имя пользователя к socket.id
+        console.log(`User ${username} connected`);
+    });
+
+    // Обработка сообщений
+    socket.on('send-message', (data) => {
+        const { sender, receiver, message } = data;
+        const receiverSocket = users[receiver]; // Получаем socket.id получателя
+
+        if (receiverSocket) {
+            // Отправляем сообщение получателю
+            io.to(receiverSocket).emit('receive-message', {
+                sender: sender,
+                message: message,
+                timestamp: new Date().toString(),
+            });
+        }
+    });
+
+    // Отключение пользователя
+    socket.on('disconnect', () => {
+        for (const [username, socketId] of Object.entries(users)) {
+            if (socketId === socket.id) {
+                delete users[username];
+                console.log(`User ${username} disconnected`);
+            }
+        }
+    });
 });
 
 app.post('/register', async (req, res) => {
