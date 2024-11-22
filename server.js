@@ -68,6 +68,17 @@ io.on('connection', (socket) => {
     socket.username = username;
   });
 
+  // Отправка сообщения через WebSocket всем подключённым пользователям
+  socket.on('sendMessage', (data) => {
+    console.log('Отправка сообщения: ', data);
+    io.emit('receiveMessage', {
+      sender: data.sender,
+      receiver: data.receiver,
+      message: data.message,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   socket.on('disconnect', () => {
     console.log('Пользователь отключился:', socket.id);
   });
