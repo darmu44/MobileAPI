@@ -46,7 +46,6 @@ const io = socketIo(server, {
 
 app.use(bodyParser.json());
 app.use(cors());
-app.use(express.json());
 
 // Папка с изображениями
 const IMAGE_FOLDER = path.join(__dirname, 'images');
