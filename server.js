@@ -67,22 +67,24 @@ io.on('connection', (socket) => {
     });
 
     // Обработка отправки сообщения
-    socket.on('sendMessage', async ({ sender, receiver, message }) => {
+    socket.on('sendMessage', async (data) => {
+        const { sender, receiver, message } = data;
         try {
-            // Сохранение сообщения в базе данных
             await pool.query(
-                'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())',
+                'INSERT INTO messages (sender, receiver, message) VALUES ($1, $2, $3)',
                 [sender, receiver, message]
             );
-
-            // Проверка, онлайн ли получатель
-            if (onlineUsers[receiver]) {
-                // Отправка сообщения онлайн-пользователю
-                io.to(onlineUsers[receiver]).emit('receiveMessage', { sender, message, timestamp: new Date() });
-            }
-        } catch (error) {
-            console.error('Ошибка отправки сообщения:', error);
+            console.log('Сообщение сохранено в базе данных');
+        } catch (err) {
+            console.error('Ошибка сохранения сообщения:', err);
         }
+
+        io.emit('receiveMessage', {
+            sender,
+            receiver,
+            message,
+            timestamp: new Date().toISOString(),
+        });
     });
 
     // Обработка отключения пользователя
