@@ -177,7 +177,7 @@ app.get('/get-posts', async (req, res) => {
     try {
         // Запрос для получения всех постов с данными пользователя (имя, аватар)
         const result = await pool.query(`
-            SELECT p.id_post, TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') AS date, p.description, p.image_url, u.name, u.avatar_url
+            SELECT p.id_post, TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') AS date, p.description, p.image_url, u.login, u.name, u.avatar_url
             FROM post p
             JOIN user_post up ON up.id_post = p.id_post
             JOIN "user" u ON u.id = up.id_user
