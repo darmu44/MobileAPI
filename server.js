@@ -53,41 +53,60 @@ const pool = new Pool({
     port: 5432,
 });
 
-// Настройка подключения WebSocket
-let users = {}; // Словарь для хранения подключенных пользователей
+// Сохранение сообщений в базе данных
+app.post('/send-message', async (req, res) => {
+    const { sender, receiver, message } = req.body;
 
+    try {
+        const result = await pool.query(
+            'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW()) RETURNING *',
+            [sender, receiver, message]
+        );
+
+        // Уведомление второго пользователя через WebSocket
+        // Проверим, есть ли подключение у получателя
+        io.to(receiver).emit('new_message', {
+            sender,
+            message,
+            timestamp: result.rows[0].timestamp,
+        });
+
+        res.status(201).json({ message: 'Сообщение отправлено!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка при отправке сообщения!' });
+    }
+});
+
+// Обработчик для получения сообщений между пользователями
+app.get('/get-messages', async (req, res) => {
+    const { sender, receiver } = req.query;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM messages WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1) ORDER BY timestamp ASC',
+            [sender, receiver]
+        );
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка при загрузке сообщений!' });
+    }
+});
+
+// Подключение WebSocket
 io.on('connection', (socket) => {
-    console.log('A user connected: ' + socket.id);
-
-    // Регистрация пользователя
-    socket.on('register-user', (username) => {
-        users[username] = socket.id; // Привязываем имя пользователя к socket.id
-        console.log(`User ${username} connected`);
-    });
-
-    // Обработка сообщений
-    socket.on('send-message', (data) => {
-        const { sender, receiver, message } = data;
-        const receiverSocket = users[receiver]; // Получаем socket.id получателя
-
-        if (receiverSocket) {
-            // Отправляем сообщение получателю
-            io.to(receiverSocket).emit('receive-message', {
-                sender: sender,
-                message: message,
-                timestamp: new Date().toString(),
-            });
-        }
+    console.log('Новый пользователь подключен');
+    
+    // Подключение пользователя
+    socket.on('join', (username) => {
+        socket.join(username); // Пользователь подключается к своей комнате
+        console.log(`${username} подключен`);
     });
 
     // Отключение пользователя
     socket.on('disconnect', () => {
-        for (const [username, socketId] of Object.entries(users)) {
-            if (socketId === socket.id) {
-                delete users[username];
-                console.log(`User ${username} disconnected`);
-            }
-        }
+        console.log('Пользователь отключился');
     });
 });
 
@@ -303,49 +322,6 @@ app.post('/edit-profile', uploadAvatar.single('avatar'), async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Ошибка изменения профиля!' });
-    }
-});
-
-app.post('/send-message', async (req, res) => {
-    const { sender, receiver, message } = req.body;
-
-    if (!sender || !receiver || !message) {
-        return res.status(400).json({ error: 'Все поля обязательны!' });
-    }
-
-    try {
-        await pool.query(
-            'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())',
-            [sender, receiver, message]
-        );
-        res.status(201).json({ message: 'Сообщение отправлено!' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка при отправке сообщения!' });
-    }
-});
-
-app.get('/get-messages', async (req, res) => {
-    const { sender, receiver } = req.query;
-
-    if (!sender || !receiver) {
-        return res.status(400).json({ error: 'Отправитель и получатель обязательны!' });
-    }
-
-    try {
-        const result = await pool.query(
-            `
-            SELECT sender, receiver, message, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as timestamp
-            FROM messages
-            WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1)
-            ORDER BY timestamp ASC
-            `,
-            [sender, receiver]
-        );
-        res.json(result.rows);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка получения сообщений!' });
     }
 });
 
