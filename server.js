@@ -263,6 +263,49 @@ app.post('/edit-profile', uploadAvatar.single('avatar'), async (req, res) => {
     }
 });
 
+app.post('/send-message', async (req, res) => {
+    const { sender, receiver, message } = req.body;
+
+    if (!sender || !receiver || !message) {
+        return res.status(400).json({ error: 'Все поля обязательны!' });
+    }
+
+    try {
+        await pool.query(
+            'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())',
+            [sender, receiver, message]
+        );
+        res.status(201).json({ message: 'Сообщение отправлено!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка при отправке сообщения!' });
+    }
+});
+
+app.get('/get-messages', async (req, res) => {
+    const { sender, receiver } = req.query;
+
+    if (!sender || !receiver) {
+        return res.status(400).json({ error: 'Отправитель и получатель обязательны!' });
+    }
+
+    try {
+        const result = await pool.query(
+            `
+            SELECT sender, receiver, message, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as timestamp
+            FROM messages
+            WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1)
+            ORDER BY timestamp ASC
+            `,
+            [sender, receiver]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка получения сообщений!' });
+    }
+});
+
 // Эндпоинт для получения изображения поста
 app.get('/images/posts/:filename', (req, res) => {
     const { filename } = req.params;
