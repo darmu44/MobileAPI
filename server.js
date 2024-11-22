@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const http = require('http');
-const socketIo = require('socket.io'); // Подключаем socket.io
+const { Server } = require('socket.io');
 
 // Настройка multer для хранения изображений аватаров
 const avatarStorage = multer.diskStorage({
@@ -36,8 +36,8 @@ const uploadAvatar = multer({ storage: avatarStorage });
 const uploadPost = multer({ storage: postStorage });
 
 const app = express();
-const server = http.createServer(app); // Создаем HTTP-сервер
-const io = socketIo(server); // Инициализируем Socket.IO с HTTP-сервером
+const server = http.createServer(app);
+const io = new Server(server);
 
 app.use(bodyParser.json());
 app.use(cors());
@@ -53,61 +53,64 @@ const pool = new Pool({
     port: 5432,
 });
 
-// Сохранение сообщений в базе данных
-app.post('/send-message', async (req, res) => {
-    const { sender, receiver, message } = req.body;
+// Список подключенных пользователей
+const onlineUsers = {};
 
-    try {
-        const result = await pool.query(
-            'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW()) RETURNING *',
-            [sender, receiver, message]
-        );
+// WebSocket-соединение
+io.on('connection', (socket) => {
+    console.log('Пользователь подключился:', socket.id);
 
-        // Уведомление второго пользователя через WebSocket
-        // Проверим, есть ли подключение у получателя
-        io.to(receiver).emit('new_message', {
-            sender,
-            message,
-            timestamp: result.rows[0].timestamp,
-        });
+    // Сохранение пользователя в onlineUsers
+    socket.on('registerUser', (username) => {
+        onlineUsers[username] = socket.id;
+        console.log(`${username} зарегистрирован с сокетом ${socket.id}`);
+    });
 
-        res.status(201).json({ message: 'Сообщение отправлено!' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка при отправке сообщения!' });
-    }
+    // Обработка отправки сообщения
+    socket.on('sendMessage', async ({ sender, receiver, message }) => {
+        try {
+            // Сохранение сообщения в базе данных
+            await pool.query(
+                'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())',
+                [sender, receiver, message]
+            );
+
+            // Проверка, онлайн ли получатель
+            if (onlineUsers[receiver]) {
+                // Отправка сообщения онлайн-пользователю
+                io.to(onlineUsers[receiver]).emit('receiveMessage', { sender, message, timestamp: new Date() });
+            }
+        } catch (error) {
+            console.error('Ошибка отправки сообщения:', error);
+        }
+    });
+
+    // Обработка отключения пользователя
+    socket.on('disconnect', () => {
+        for (const [username, id] of Object.entries(onlineUsers)) {
+            if (id === socket.id) {
+                delete onlineUsers[username];
+                console.log(`${username} отключился`);
+                break;
+            }
+        }
+    });
 });
 
-// Обработчик для получения сообщений между пользователями
+// API для получения всех сообщений
 app.get('/get-messages', async (req, res) => {
     const { sender, receiver } = req.query;
+
     try {
         const result = await pool.query(
-            'SELECT * FROM messages WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1) ORDER BY timestamp ASC',
+            'SELECT sender, message, TO_CHAR(timestamp, \'YYYY-MM-DD HH24:MI:SS\') AS timestamp FROM messages WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1) ORDER BY timestamp ASC',
             [sender, receiver]
         );
-
         res.json(result.rows);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка при загрузке сообщений!' });
+        console.error('Ошибка получения сообщений:', error);
+        res.status(500).json({ error: 'Ошибка получения сообщений' });
     }
-});
-
-// Подключение WebSocket
-io.on('connection', (socket) => {
-    console.log('Новый пользователь подключен');
-    
-    // Подключение пользователя
-    socket.on('join', (username) => {
-        socket.join(username); // Пользователь подключается к своей комнате
-        console.log(`${username} подключен`);
-    });
-
-    // Отключение пользователя
-    socket.on('disconnect', () => {
-        console.log('Пользователь отключился');
-    });
 });
 
 app.post('/register', async (req, res) => {
