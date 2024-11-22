@@ -195,7 +195,8 @@ app.get('/get-posts', async (req, res) => {
             description: post.description,
             image_url: post.image_url ? `http://79.174.95.226:3000/images/posts/${post.image_url}` : null,
             username: post.name,  // Имя пользователя
-            avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null
+            avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null,
+            user_login: post.login,  // Логин пользователя
         }));
 
         res.json({ posts });
