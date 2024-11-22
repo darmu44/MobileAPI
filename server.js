@@ -37,7 +37,12 @@ const uploadPost = multer({ storage: postStorage });
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+});
 
 app.use(bodyParser.json());
 app.use(cors());
@@ -53,66 +58,65 @@ const pool = new Pool({
     port: 5432,
 });
 
-// Список подключенных пользователей
-const onlineUsers = {};
-
-// WebSocket-соединение
+// Обработка WebSocket соединений
 io.on('connection', (socket) => {
-    console.log('Пользователь подключился:', socket.id);
+  console.log('Пользователь подключился:', socket.id);
 
-    // Сохранение пользователя в onlineUsers
-    socket.on('registerUser', (username) => {
-        onlineUsers[username] = socket.id;
-        console.log(`${username} зарегистрирован с сокетом ${socket.id}`);
-    });
+  // Регистрация пользователя
+  socket.on('registerUser', (username) => {
+    console.log('Пользователь зарегистрирован:', username);
+    socket.username = username;
+  });
 
-    // Обработка отправки сообщения
-    socket.on('sendMessage', async (data) => {
-        const { sender, receiver, message } = data;
-        try {
-            await pool.query(
-                'INSERT INTO messages (sender, receiver, message) VALUES ($1, $2, $3)',
-                [sender, receiver, message]
-            );
-            console.log('Сообщение сохранено в базе данных');
-        } catch (err) {
-            console.error('Ошибка сохранения сообщения:', err);
-        }
-
-        io.emit('receiveMessage', {
-            sender,
-            receiver,
-            message,
-            timestamp: new Date().toISOString(),
-        });
-    });
-
-    // Обработка отключения пользователя
-    socket.on('disconnect', () => {
-        for (const [username, id] of Object.entries(onlineUsers)) {
-            if (id === socket.id) {
-                delete onlineUsers[username];
-                console.log(`${username} отключился`);
-                break;
-            }
-        }
-    });
+  socket.on('disconnect', () => {
+    console.log('Пользователь отключился:', socket.id);
+  });
 });
 
-// API для получения всех сообщений
-app.get('/get-messages', async (req, res) => {
-    const { sender, receiver } = req.query;
+// REST API для отправки сообщений
+app.post('/send-message', async (req, res) => {
+  const { sender, receiver, message } = req.body;
 
-    try {
-        const result = await pool.query(
-            'SELECT sender, message, TO_CHAR(timestamp, \'YYYY-MM-DD HH24:MI:SS\') AS timestamp FROM messages WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1) ORDER BY timestamp ASC',
-            [sender, receiver]
-        );
-        res.json(result.rows);
-    } catch (error) {
-        console.error('Ошибка получения сообщений:', error);
-        res.status(500).json({ error: 'Ошибка получения сообщений' });
-    }
+  if (!sender || !receiver || !message) {
+    return res.status(400).json({ error: 'Все поля обязательны' });
+  }
+
+  try {
+    // Сохранение сообщения в базе данных
+    await pool.query(
+      'INSERT INTO messages (sender, receiver, message) VALUES ($1, $2, $3)',
+      [sender, receiver, message]
+    );
+
+    // Отправка сообщения через WebSocket
+    io.emit('receiveMessage', {
+      sender,
+      receiver,
+      message,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(200).json({ message: 'Сообщение отправлено и сохранено' });
+  } catch (err) {
+    console.error('Ошибка сохранения сообщения:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// REST API для получения сообщений
+app.get('/get-messages', async (req, res) => {
+  const { sender, receiver } = req.query;
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM messages WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1) ORDER BY timestamp ASC',
+      [sender, receiver]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Ошибка получения сообщений:', err);
+    res.status(500).send('Ошибка сервера');
+  }
 });
 
 app.post('/register', async (req, res) => {
