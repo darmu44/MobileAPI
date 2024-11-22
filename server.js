@@ -6,9 +6,8 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+
 const multer = require('multer');
-const http = require('http');
-const socketIo = require('socket.io');
 
 // Настройка multer для хранения изображений аватаров
 const avatarStorage = multer.diskStorage({
@@ -36,14 +35,6 @@ const uploadAvatar = multer({ storage: avatarStorage });
 const uploadPost = multer({ storage: postStorage });
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*", // Разрешить доступ с любых источников
-    methods: ["GET", "POST"],
-  },
-});
-
 app.use(bodyParser.json());
 app.use(cors());
 
@@ -56,61 +47,6 @@ const pool = new Pool({
     database: '2024_psql_dan',
     password: 'hq7L54hC9LEc7YzC',
     port: 5432,
-});
-
-io.on('connection', (socket) => {
-  console.log('Новое соединение установлено');
-
-  // Слушаем событие отправки сообщения
-  socket.on('sendMessage', async (data) => {
-    const { sender, receiver, message } = data;
-
-    try {
-      // Сохраняем сообщение в БД
-      await pool.query(
-        'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())',
-        [sender, receiver, message]
-      );
-
-      // Отправляем сообщение всем подключенным клиентам
-      io.emit('newMessage', {
-        sender,
-        receiver,
-        message,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('Ошибка при сохранении сообщения:', error);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Клиент отключился');
-  });
-});
-
-app.get('/get-messages', async (req, res) => {
-  const { sender, receiver } = req.query;
-
-  if (!sender || !receiver) {
-    return res.status(400).json({ error: 'Отправитель и получатель обязательны!' });
-  }
-
-  try {
-    const result = await pool.query(
-      `
-      SELECT sender, receiver, message, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as timestamp
-      FROM messages
-      WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1)
-      ORDER BY timestamp ASC
-      `,
-      [sender, receiver]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Ошибка получения сообщений:', error);
-    res.status(500).json({ error: 'Ошибка получения сообщений!' });
-  }
 });
 
 app.post('/register', async (req, res) => {
@@ -325,6 +261,49 @@ app.post('/edit-profile', uploadAvatar.single('avatar'), async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Ошибка изменения профиля!' });
+    }
+});
+
+app.post('/send-message', async (req, res) => {
+    const { sender, receiver, message } = req.body;
+
+    if (!sender || !receiver || !message) {
+        return res.status(400).json({ error: 'Все поля обязательны!' });
+    }
+
+    try {
+        await pool.query(
+            'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())',
+            [sender, receiver, message]
+        );
+        res.status(201).json({ message: 'Сообщение отправлено!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка при отправке сообщения!' });
+    }
+});
+
+app.get('/get-messages', async (req, res) => {
+    const { sender, receiver } = req.query;
+
+    if (!sender || !receiver) {
+        return res.status(400).json({ error: 'Отправитель и получатель обязательны!' });
+    }
+
+    try {
+        const result = await pool.query(
+            
+            SELECT sender, receiver, message, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as timestamp
+            FROM messages
+            WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1)
+            ORDER BY timestamp ASC
+            ,
+            [sender, receiver]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка получения сообщений!' });
     }
 });
 
