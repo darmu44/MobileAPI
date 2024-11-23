@@ -176,13 +176,20 @@ app.post('/create-post', uploadPost.single('image'), async (req, res) => {
 app.get('/get-posts', async (req, res) => {
     try {
         // Запрос для получения всех постов с данными пользователя (имя, аватар)
-        const result = await pool.query(
-            SELECT p.id_post, TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') AS date, p.description, p.image_url, u.login, u.name, u.avatar_url
+        const result = await pool.query(`
+            SELECT 
+                p.id_post, 
+                TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') AS date, 
+                p.description, 
+                p.image_url, 
+                u.login, 
+                u.name, 
+                u.avatar_url
             FROM post p
             JOIN user_post up ON up.id_post = p.id_post
             JOIN "user" u ON u.id = up.id_user
             ORDER BY p.date ASC
-        );
+        `);
 
         if (result.rowCount === 0) {
             return res.status(404).json({ error: 'Нет постов для отображения!' });
@@ -193,9 +200,9 @@ app.get('/get-posts', async (req, res) => {
             id_post: post.id_post,
             date: post.date,
             description: post.description,
-            image_url: post.image_url ? http://79.174.95.226:3000/images/posts/${post.image_url} : null,
+            image_url: post.image_url ? `http://79.174.95.226:3000/images/posts/${post.image_url}` : null,
             username: post.name,  // Имя пользователя
-            avatar_url: post.avatar_url ? http://79.174.95.226:3000/images/avatars/${post.avatar_url} : null,
+            avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null,
             user_login: post.login,  // Логин пользователя
         }));
 
