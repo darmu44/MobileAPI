@@ -334,7 +334,7 @@ app.get('/images/posts/:filename', (req, res) => {
 
     fs.stat(filePath, (err, stat) => {
         if (err || !stat.isFile()) {
-            console.error(Файл ${filename} не найден.);
+            console.error(`Файл ${filename} не найден.`);
             return res.status(404).json({ error: 'Файл не найден' });
         }
 
@@ -349,7 +349,7 @@ app.get('/images/avatars/:filename', (req, res) => {
 
     fs.stat(filePath, (err, stat) => {
         if (err || !stat.isFile()) {
-            console.error(Файл ${filename} не найден.);
+            console.error(`Файл ${filename} не найден.`);
             return res.status(404).json({ error: 'Файл не найден' });
         }
 
@@ -359,5 +359,5 @@ app.get('/images/avatars/:filename', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-console.log(Сервер запущен и работает на порту ${PORT});
+console.log(`Сервер запущен и работает на порту ${PORT}`);
 })
