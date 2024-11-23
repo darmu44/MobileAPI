@@ -59,8 +59,10 @@ wss.on('connection', (ws, req) => {
   const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
   console.log(`New connection: ${sender} -> ${receiver}`);
 
-  // Добавляем клиента в список
-  clients.push(ws);
+  // Проверяем, есть ли уже такое подключение
+  if (!clients.includes(ws)) {
+    clients.push(ws);
+  }
 
   ws.on('message', async (message) => {
     const msgData = JSON.parse(message);
