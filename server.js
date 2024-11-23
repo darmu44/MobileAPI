@@ -259,7 +259,7 @@ app.get('/get-posts-profile', async (req, res) => {
 
 app.post('/edit-profile', uploadAvatar.single('avatar'), async (req, res) => {
     const { login, name, description } = req.body;
-    const avatarUrl = req.file ? ${req.file.filename} : null;
+    const avatarUrl = req.file ? `${req.file.filename}` : null;
 
     try {
         const updateResult = await pool.query(
