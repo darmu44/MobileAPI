@@ -46,7 +46,7 @@ const pool = new Pool({
     port: 5432,
 });
 
-const wss = new WebSocket.Server({ port: 8080 });  //Порт для веб сокета 8080
+const wss = new WebSocket.Server({ port: 8080 });
 let clients = [];
 
 wss.on('connection', (ws, req) => {
@@ -67,7 +67,6 @@ wss.on('connection', (ws, req) => {
             [msgData.sender, msgData.receiver, msgData.message]
         );
 
-        // Рассылка сообщений
         broadcastMessage(msgData);
     } catch (error) {
         console.error('Ошибка при сохранении сообщения в базе данных:', error);
@@ -100,7 +99,6 @@ function broadcastMessage(data) {
     });
 }
 
-// Отправка сообщений
 app.post('/send-message', async (req, res) => {
     const { sender, receiver, message } = req.body;
 
@@ -282,15 +280,14 @@ app.get('/get-posts', async (req, res) => {
             return res.status(404).json({ error: 'Нет постов для отображения!' });
         }
 
-        // Маппим посты с данными пользователя
         const posts = result.rows.map(post => ({
             id_post: post.id_post,
             date: post.date,
             description: post.description,
             image_url: post.image_url ? `http://79.174.95.226:3000/images/posts/${post.image_url}` : null,
-            username: post.name,  // Имя пользователя
+            username: post.name,
             avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null,
-            user_login: post.login,  // Логин пользователя
+            user_login: post.login,
         }));
 
         res.json({ posts });
