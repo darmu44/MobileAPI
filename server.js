@@ -49,38 +49,31 @@ const pool = new Pool({
     port: 5432,
 });
 
-const wss = new WebSocket.Server({ port: 3000 });
+const wss = new WebSocket.Server({ port: 8080 });  // Используем порт 8080
 
 // Хранение подключений клиентов
 let clients = [];
 
 wss.on('connection', (ws, req) => {
-  // Идентифицируем пользователей через query параметр
   const sender = new URLSearchParams(req.url.split('?')[1]).get('sender');
   const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
 
-  console.log(`User ${sender} connected, waiting for messages...`);
+  console.log(`New connection: ${sender} -> ${receiver}`);
 
   ws.on('message', (message) => {
-    console.log(`Received message from ${sender}: ${message}`);
     const msgData = JSON.parse(message);
-    
-    // Перебираем все подключенные клиенты и отправляем сообщение тем, кто является получателем
+    console.log('Received message:', msgData);
+
+    // Рассылаем сообщение всем клиентам, кроме отправителя
     wss.clients.forEach(client => {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
-        // Проверьте, что получатель совпадает с тем, кому нужно отправить
-        const params = new URLSearchParams(client.upgradeReq.url.split('?')[1]);
-        if (params.get('sender') === msgData.receiver) {
-          client.send(JSON.stringify(msgData));
-        }
+        client.send(JSON.stringify(msgData));  // Отправляем сообщение всем подключенным
       }
     });
   });
-
-  ws.on('close', () => {
-    console.log(`${sender} disconnected`);
-  });
 });
+
+console.log("WebSocket server running on ws://localhost:8080");
 
 // Функция для отправки сообщений всем клиентам
 function broadcastMessage(data) {
