@@ -66,19 +66,20 @@ wss.on('connection', (ws, req) => {
     const msgData = JSON.parse(message);
     console.log('Received message:', msgData);
 
-    // Сохраняем сообщение в базе данных
+    // Убедитесь, что запрос выполняется только один раз
     try {
-        await pool.query(
+        const result = await pool.query(
             `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
             [msgData.sender, msgData.receiver, msgData.message]
         );
-
-        // Рассылаем сообщение всем подключенным клиентам
-        broadcastMessage(msgData);
+        console.log('Message saved to DB:', result);
     } catch (error) {
         console.error('Ошибка при сохранении сообщения в базе данных:', error);
     }
-  });
+
+    // Отправляем сообщение всем подключенным клиентам
+    broadcastMessage(msgData);
+});
 
   // Обработка отключения клиента
   ws.on('close', () => {
