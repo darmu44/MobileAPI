@@ -51,44 +51,60 @@ const pool = new Pool({
 
 const wss = new WebSocket.Server({ port: 8080 });  // Используем порт 8080
 
-// Хранение подключений клиентов
-let clients = [];
+const clients = new Map();
 
-wss.on('connection', (ws, req) => {
-  const sender = new URLSearchParams(req.url.split('?')[1]).get('sender');
-  const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
-  console.log(`New connection: ${sender} -> ${receiver}`);
+wss.on('connection', async (ws, req) => {
+    const params = new URLSearchParams(req.url.split('?')[1]);
+    const sender = params.get('sender');
+    const receiver = params.get('receiver');
 
-  // Проверяем, есть ли уже такое подключение
-  if (!clients.includes(ws)) {
-    clients.push(ws);
-  }
+    // Сохраняем клиента
+    clients.set(ws, { sender, receiver });
 
-  ws.on('message', async (message) => {
-    const msgData = JSON.parse(message);
-    console.log('Received message:', msgData);
-
+    // Отправляем историю сообщений из базы данных
     try {
-        await pool.query(
-            `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
-            [msgData.sender, msgData.receiver, msgData.message]
+        const result = await pool.query(
+            `SELECT sender, receiver, message, timestamp 
+             FROM messages 
+             WHERE (sender = $1 AND receiver = $2) 
+                OR (sender = $2 AND receiver = $1) 
+             ORDER BY timestamp ASC`,
+            [sender, receiver]
         );
 
-        // Отправляем сообщение всем, кроме отправителя
-        clients.forEach(client => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify(msgData));
-            }
-        });
+        ws.send(JSON.stringify({ type: 'history', messages: result.rows }));
     } catch (error) {
-        console.error('Ошибка при сохранении сообщения в базе данных:', error);
+        console.error('Ошибка при получении сообщений:', error);
     }
-});
 
-  // Обработка отключения клиента
-  ws.on('close', () => {
-    clients = clients.filter(client => client !== ws);
-  });
+    // Слушаем новые сообщения
+    ws.on('message', async (message) => {
+        const msgData = JSON.parse(message);
+        console.log('Получено сообщение:', msgData);
+
+        // Сохраняем сообщение в базу данных
+        try {
+            await pool.query(
+                `INSERT INTO messages (sender, receiver, message, timestamp) 
+                 VALUES ($1, $2, $3, NOW())`,
+                [msgData.sender, msgData.receiver, msgData.message]
+            );
+
+            // Отправляем сообщение всем клиентам
+            clients.forEach((client, clientWs) => {
+                if (clientWs.readyState === WebSocket.OPEN) {
+                    clientWs.send(JSON.stringify(msgData));
+                }
+            });
+        } catch (error) {
+            console.error('Ошибка при сохранении сообщения:', error);
+        }
+    });
+
+    // Обрабатываем закрытие соединения
+    ws.on('close', () => {
+        clients.delete(ws);
+    });
 });
 
 console.log("WebSocket server running on ws://localhost:8080");
