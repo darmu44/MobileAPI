@@ -57,8 +57,10 @@ let clients = [];
 wss.on('connection', (ws, req) => {
   const sender = new URLSearchParams(req.url.split('?')[1]).get('sender');
   const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
-
   console.log(`New connection: ${sender} -> ${receiver}`);
+
+  // Добавляем клиента в список
+  clients.push(ws);
 
   ws.on('message', async (message) => {
     const msgData = JSON.parse(message);
@@ -76,7 +78,12 @@ wss.on('connection', (ws, req) => {
     } catch (error) {
         console.error('Ошибка при сохранении сообщения в базе данных:', error);
     }
-});
+  });
+
+  // Обработка отключения клиента
+  ws.on('close', () => {
+    clients = clients.filter(client => client !== ws);
+  });
 });
 
 console.log("WebSocket server running on ws://localhost:8080");
