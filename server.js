@@ -51,63 +51,51 @@ const pool = new Pool({
 
 const wss = new WebSocket.Server({ port: 8080 });  // Используем порт 8080
 
-const clients = new Map();
+// Хранение подключений клиентов
+let clients = [];
 
-wss.on('connection', async (ws, req) => {
-    const params = new URLSearchParams(req.url.split('?')[1]);
-    const sender = params.get('sender');
-    const receiver = params.get('receiver');
+wss.on('connection', (ws, req) => {
+  const sender = new URLSearchParams(req.url.split('?')[1]).get('sender');
+  const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
+  console.log(`New connection: ${sender} -> ${receiver}`);
 
-    // Сохраняем клиента
-    clients.set(ws, { sender, receiver });
+  // Добавляем клиента в список
+  clients.push(ws);
 
-    // Отправляем историю сообщений из базы данных
+  ws.on('message', async (message) => {
+    const msgData = JSON.parse(message);
+    console.log('Received message:', msgData);
+
+    // Сохраняем сообщение в базе данных
     try {
-        const result = await pool.query(
-            `SELECT sender, receiver, message, timestamp 
-             FROM messages 
-             WHERE (sender = $1 AND receiver = $2) 
-                OR (sender = $2 AND receiver = $1) 
-             ORDER BY timestamp ASC`,
-            [sender, receiver]
+        await pool.query(
+            `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
+            [msgData.sender, msgData.receiver, msgData.message]
         );
 
-        ws.send(JSON.stringify({ type: 'history', messages: result.rows }));
+        // Рассылаем сообщение всем подключенным клиентам
+        broadcastMessage(msgData);
     } catch (error) {
-        console.error('Ошибка при получении сообщений:', error);
+        console.error('Ошибка при сохранении сообщения в базе данных:', error);
     }
+  });
 
-    // Слушаем новые сообщения
-    ws.on('message', async (message) => {
-        const msgData = JSON.parse(message);
-        console.log('Получено сообщение:', msgData);
-
-        // Сохраняем сообщение в базу данных
-        try {
-            await pool.query(
-                `INSERT INTO messages (sender, receiver, message, timestamp) 
-                 VALUES ($1, $2, $3, NOW())`,
-                [msgData.sender, msgData.receiver, msgData.message]
-            );
-
-            // Отправляем сообщение всем клиентам
-            clients.forEach((client, clientWs) => {
-                if (clientWs.readyState === WebSocket.OPEN) {
-                    clientWs.send(JSON.stringify(msgData));
-                }
-            });
-        } catch (error) {
-            console.error('Ошибка при сохранении сообщения:', error);
-        }
-    });
-
-    // Обрабатываем закрытие соединения
-    ws.on('close', () => {
-        clients.delete(ws);
-    });
+  // Обработка отключения клиента
+  ws.on('close', () => {
+    clients = clients.filter(client => client !== ws);
+  });
 });
 
 console.log("WebSocket server running on ws://localhost:8080");
+
+// Функция для отправки сообщений всем клиентам
+function broadcastMessage(data) {
+    clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(data));
+        }
+    });
+}
 
 // Endpoint для отправки сообщений
 app.post('/send-message', async (req, res) => {
