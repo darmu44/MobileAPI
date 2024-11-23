@@ -9,25 +9,23 @@ const fs = require('fs');
 const multer = require('multer');
 const WebSocket = require('ws');
 
-// Настройка multer для хранения изображений аватаров
 const avatarStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, 'images', 'avatars')); // Папка для аватаров
+        cb(null, path.join(__dirname, 'images', 'avatars'));
     },
     filename: (req, file, cb) => {
         const fileName = Date.now().toString() + path.extname(file.originalname);
-        cb(null, fileName); // Уникальное имя файла
+        cb(null, fileName); // Запись уникального имени
     }
 });
 
-// Настройка multer для хранения изображений постов
 const postStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, 'images', 'posts')); // Папка для постов
+        cb(null, path.join(__dirname, 'images', 'posts'));
     },
     filename: (req, file, cb) => {
         const fileName = Date.now().toString() + path.extname(file.originalname);
-        cb(null, fileName); // Уникальное имя файла
+        cb(null, fileName); // Запись уникального имени
     }
 });
 
@@ -38,7 +36,6 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
-// Папка с изображениями
 const IMAGE_FOLDER = path.join(__dirname, 'images');
 
 const pool = new Pool({
@@ -49,61 +46,53 @@ const pool = new Pool({
     port: 5432,
 });
 
-const wss = new WebSocket.Server({ port: 8080 });  // Используем порт 8080
-
-// Хранение подключений клиентов
+const wss = new WebSocket.Server({ port: 8080 });  //Порт для веб сокета 8080
 let clients = [];
 
 wss.on('connection', (ws, req) => {
   const sender = new URLSearchParams(req.url.split('?')[1]).get('sender');
   const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
   console.log(`New connection: ${sender} -> ${receiver}`);
-
-  // Добавляем клиента в список
+    
   clients.push(ws);
 
   ws.on('message', async (message) => {
     const msgData = JSON.parse(message);
     console.log('Received message:', msgData);
 
-    // Сохраняем сообщение в базе данных
+    // Сохранение сообщения
     try {
         await pool.query(
             `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
             [msgData.sender, msgData.receiver, msgData.message]
         );
 
-        // Рассылаем сообщение всем подключенным клиентам
+        // Рассылка сообщений
         broadcastMessage(msgData);
     } catch (error) {
         console.error('Ошибка при сохранении сообщения в базе данных:', error);
     }
   });
 
-  // Обработка отключения клиента
   ws.on('close', () => {
     clients = clients.filter(client => client !== ws);
   });
 });
 
-console.log("WebSocket server running on ws://localhost:8080");
+console.log("WebSocket запущен, путь://localhost:8080");
 
 let lastSentMessages = new Set();
 
 function broadcastMessage(data) {
-    // Формируем уникальный идентификатор сообщения (можно использовать, например, timestamp + sender + receiver)
     const messageId = `${data.timestamp}-${data.sender}-${data.receiver}-${data.message}`;
     
-    // Если сообщение уже отправлялось, не отправляем его снова
     if (lastSentMessages.has(messageId)) {
-        console.log('Сообщение уже отправлено:', messageId);
+        console.log('Сообщение уже отправлено!:', messageId);
         return;
     }
     
-    // Добавляем ID сообщения в Set
     lastSentMessages.add(messageId);
     
-    // Рассылаем сообщение всем подключенным клиентам
     clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify(data));
@@ -111,7 +100,7 @@ function broadcastMessage(data) {
     });
 }
 
-// Endpoint для отправки сообщений
+// Отправка сообщений
 app.post('/send-message', async (req, res) => {
     const { sender, receiver, message } = req.body;
 
@@ -124,8 +113,7 @@ app.post('/send-message', async (req, res) => {
             `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
             [sender, receiver, message]
         );
-
-        // Отправляем новое сообщение через WebSocket всем подключённым клиентам
+        
         broadcastMessage({ sender, receiver, message });
 
         res.status(201).json({ message: 'Сообщение отправлено!' });
@@ -135,7 +123,6 @@ app.post('/send-message', async (req, res) => {
     }
 });
 
-// Endpoint для получения сообщений
 app.get('/get-messages', async (req, res) => {
     const { sender, receiver } = req.query;
 
@@ -172,8 +159,6 @@ app.post('/register', async (req, res) => {
             [login, hashedPassword, false]
         );
         const userId = insertResult.rows[0].id;
-
-        // Генерация токена при регистрации
         const token = jwt.sign({ id: userId }, process.env.JWT_SECRET || 'your_jwt_secret');
         res.status(201).json({ token });  // Возвращаем токен
     } catch (error) {
@@ -182,7 +167,6 @@ app.post('/register', async (req, res) => {
     }
 });
 
-// Обработчик маршрута /create-profile
 app.post('/create-profile', uploadAvatar.single('avatar'), async (req, res) => {
     const { login, name, description } = req.body;
     const avatarUrl = req.file ? `${req.file.filename}` : null;
@@ -212,7 +196,6 @@ app.post('/get-profile', async (req, res) => {
         return res.status(404).json({ error: 'Пользователь не найден' });
       }
   
-      // Получаем полный URL для аватара
       const avatarUrl = result.rows[0].avatar_url ? `http://79.174.95.226:3000/images/avatars/${result.rows[0].avatar_url}` : null;
   
       res.json({
@@ -281,15 +264,10 @@ app.post('/create-post', uploadPost.single('image'), async (req, res) => {
     }
 });
 
-// Endpoint to fetch all posts along with user details (name and avatar)
 app.get('/get-posts', async (req, res) => {
     try {
-        // Запрос для получения всех постов с данными пользователя (имя, аватар)
         const result = await pool.query(`
-            SELECT 
-                p.id_post, 
-                TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') AS date, 
-                p.description, 
+            SELECT p.id_post, TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') AS date, p.description, 
                 p.image_url, 
                 u.login, 
                 u.name, 
@@ -322,22 +300,13 @@ app.get('/get-posts', async (req, res) => {
     }
 });
 
-// Endpoint to fetch all posts with user details
 app.get('/get-posts-profile', async (req, res) => {
     try {
-        // Получаем логин пользователя из токена или сессии
-        const login = req.query.login; // Здесь предполагается, что логин передается в запросе
-
-        // Запрос для получения постов с данными пользователя (имя, аватар)
+        const login = req.query.login;
+        
         const result = await pool.query(`
             SELECT 
-                p.id_post, 
-                TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') AS date, 
-                p.description, 
-                p.image_url, 
-                u.login, 
-                u.name, 
-                u.avatar_url
+                p.id_post, TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') AS date, p.description, p.image_url, u.login, u.name, u.avatar_url
             FROM post p
             JOIN user_post up ON up.id_post = p.id_post
             JOIN "user" u ON u.id = up.id_user
@@ -349,13 +318,12 @@ app.get('/get-posts-profile', async (req, res) => {
             return res.status(404).json({ error: 'Нет постов для отображения!' });
         }
 
-        // Маппим посты с данными пользователя
         const posts = result.rows.map(post => ({
             id_post: post.id_post,
             date: post.date,
             description: post.description,
             image_url: post.image_url ? `http://79.174.95.226:3000/images/posts/${post.image_url}` : null,
-            username: post.name, // Имя пользователя
+            username: post.name,
             avatar_url: post.avatar_url ? `http://79.174.95.226:3000/images/avatars/${post.avatar_url}` : null
         }));
 
@@ -387,7 +355,6 @@ app.post('/edit-profile', uploadAvatar.single('avatar'), async (req, res) => {
     }
 });
 
-// Эндпоинт для получения изображения поста
 app.get('/images/posts/:filename', (req, res) => {
     const { filename } = req.params;
     const filePath = path.join(IMAGE_FOLDER, 'posts', filename);
@@ -398,11 +365,10 @@ app.get('/images/posts/:filename', (req, res) => {
             return res.status(404).json({ error: 'Файл не найден' });
         }
 
-        res.sendFile(filePath); // Отправляем изображение
+        res.sendFile(filePath);
     });
 });
 
-// Эндпоинт для получения изображения аватара
 app.get('/images/avatars/:filename', (req, res) => {
     const { filename } = req.params;
     const filePath = path.join(IMAGE_FOLDER, 'avatars', filename);
@@ -413,7 +379,7 @@ app.get('/images/avatars/:filename', (req, res) => {
             return res.status(404).json({ error: 'Файл не найден' });
         }
 
-        res.sendFile(filePath); // Отправляем изображение
+        res.sendFile(filePath);
     });
 });
 
