@@ -66,29 +66,24 @@ wss.on('connection', (ws, req) => {
 
   ws.on('message', async (message) => {
     const msgData = JSON.parse(message);
-
     console.log('Received message:', msgData);
 
     try {
-        // Сохраняем сообщение в базе данных
         await pool.query(
             `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
             [msgData.sender, msgData.receiver, msgData.message]
         );
 
-        // Отправляем сообщение только клиентам, которые участвуют в диалоге
-        clients.forEach((client) => {
-            if (
-                client.readyState === WebSocket.OPEN &&
-                (client.receiver === msgData.receiver || client.sender === msgData.receiver)
-            ) {
+        // Отправляем сообщение всем, кроме отправителя
+        clients.forEach(client => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify(msgData));
             }
         });
     } catch (error) {
         console.error('Ошибка при сохранении сообщения в базе данных:', error);
     }
-  });
+});
 
   // Обработка отключения клиента
   ws.on('close', () => {
