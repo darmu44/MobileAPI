@@ -305,7 +305,7 @@ app.get('/get-messages', async (req, res) => {
     }
 
     try {
-        const result = await pool.query(
+        const result = await pool.query(`
             
             SELECT sender, receiver, message, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as timestamp
             FROM messages
@@ -313,7 +313,7 @@ app.get('/get-messages', async (req, res) => {
             ORDER BY timestamp ASC
             ,
             [sender, receiver]
-        );
+        `);
         res.json(result.rows);
     } catch (error) {
         console.error(error);
