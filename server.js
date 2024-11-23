@@ -76,7 +76,7 @@ app.post('/register', async (req, res) => {
 // Обработчик маршрута /create-profile
 app.post('/create-profile', uploadAvatar.single('avatar'), async (req, res) => {
     const { login, name, description } = req.body;
-    const avatarUrl = req.file ? ${req.file.filename} : null;
+    const avatarUrl = req.file ? `${req.file.filename}` : null;
 
     try {
         const updateResult = await pool.query(
