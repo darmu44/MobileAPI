@@ -305,19 +305,25 @@ app.get('/get-messages', async (req, res) => {
     }
 
     try {
+        // Запрос для получения сообщений
         const result = await pool.query(`
-            
-            SELECT sender, receiver, message, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as timestamp
+            SELECT 
+                sender, 
+                receiver, 
+                message, 
+                TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS timestamp
             FROM messages
-            WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1)
+            WHERE 
+                (sender = $1 AND receiver = $2) 
+                OR 
+                (sender = $2 AND receiver = $1)
             ORDER BY timestamp ASC
-            ,
-            [sender, receiver]
-        `);
-        res.json(result.rows);
+        `, [sender, receiver]); // Параметры для SQL-запроса
+
+        res.json(result.rows); // Отправляем полученные сообщения клиенту
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка получения сообщений!' });
+        console.error(error); // Логируем ошибку на сервере
+        res.status(500).json({ error: 'Ошибка получения сообщений!' }); // Отправляем ошибку клиенту
     }
 });
 
