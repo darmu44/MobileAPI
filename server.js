@@ -49,24 +49,37 @@ const pool = new Pool({
     port: 5432,
 });
 
-// Создание HTTP-сервера
-const server = require('http').createServer(app);
-
-// Создание WebSocket-сервера
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ port: 3000 });
 
 // Хранение подключений клиентов
 let clients = [];
 
-// Обработка подключений WebSocket
-wss.on('connection', (ws) => {
-    console.log('Клиент подключился');
-    clients.push(ws);
+wss.on('connection', (ws, req) => {
+  // Идентифицируем пользователей через query параметр
+  const sender = new URLSearchParams(req.url.split('?')[1]).get('sender');
+  const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
 
-    ws.on('close', () => {
-        console.log('Клиент отключился');
-        clients = clients.filter((client) => client !== ws);
+  console.log(`User ${sender} connected, waiting for messages...`);
+
+  ws.on('message', (message) => {
+    console.log(`Received message from ${sender}: ${message}`);
+    const msgData = JSON.parse(message);
+    
+    // Перебираем все подключенные клиенты и отправляем сообщение тем, кто является получателем
+    wss.clients.forEach(client => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        // Проверьте, что получатель совпадает с тем, кому нужно отправить
+        const params = new URLSearchParams(client.upgradeReq.url.split('?')[1]);
+        if (params.get('sender') === msgData.receiver) {
+          client.send(JSON.stringify(msgData));
+        }
+      }
     });
+  });
+
+  ws.on('close', () => {
+    console.log(`${sender} disconnected`);
+  });
 });
 
 // Функция для отправки сообщений всем клиентам
