@@ -6,8 +6,8 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-
 const multer = require('multer');
+const WebSocket = require('ws');
 
 // Настройка multer для хранения изображений аватаров
 const avatarStorage = multer.diskStorage({
@@ -47,6 +47,82 @@ const pool = new Pool({
     database: '2024_psql_dan',
     password: 'hq7L54hC9LEc7YzC',
     port: 5432,
+});
+
+// Создание HTTP-сервера
+const server = require('http').createServer(app);
+
+// Создание WebSocket-сервера
+const wss = new WebSocket.Server({ server });
+
+// Хранение подключений клиентов
+let clients = [];
+
+// Обработка подключений WebSocket
+wss.on('connection', (ws) => {
+    console.log('Клиент подключился');
+    clients.push(ws);
+
+    ws.on('close', () => {
+        console.log('Клиент отключился');
+        clients = clients.filter((client) => client !== ws);
+    });
+});
+
+// Функция для отправки сообщений всем клиентам
+function broadcastMessage(data) {
+    clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(data));
+        }
+    });
+}
+
+// Endpoint для отправки сообщений
+app.post('/send-message', async (req, res) => {
+    const { sender, receiver, message } = req.body;
+
+    if (!sender || !receiver || !message) {
+        return res.status(400).json({ error: 'Все поля обязательны!' });
+    }
+
+    try {
+        await pool.query(
+            `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
+            [sender, receiver, message]
+        );
+
+        // Отправляем новое сообщение через WebSocket всем подключённым клиентам
+        broadcastMessage({ sender, receiver, message });
+
+        res.status(201).json({ message: 'Сообщение отправлено!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка при отправке сообщения!' });
+    }
+});
+
+// Endpoint для получения сообщений
+app.get('/get-messages', async (req, res) => {
+    const { sender, receiver } = req.query;
+
+    if (!sender || !receiver) {
+        return res.status(400).json({ error: 'Отправитель и получатель обязательны!' });
+    }
+
+    try {
+        const result = await pool.query(
+            `SELECT sender, receiver, message, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS timestamp 
+            FROM messages WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1) 
+            ORDER BY timestamp ASC`,
+            [sender, receiver]
+        );
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Ошибка при получении сообщений!' });
+    }
 });
 
 app.post('/register', async (req, res) => {
@@ -275,55 +351,6 @@ app.post('/edit-profile', uploadAvatar.single('avatar'), async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Ошибка изменения профиля!' });
-    }
-});
-
-app.post('/send-message', async (req, res) => {
-    const { sender, receiver, message } = req.body;
-
-    if (!sender || !receiver || !message) {
-        return res.status(400).json({ error: 'Все поля обязательны!' });
-    }
-
-    try {
-        await pool.query(
-            `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
-            [sender, receiver, message]
-        );
-        res.status(201).json({ message: 'Сообщение отправлено!' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка при отправке сообщения!' });
-    }
-});
-
-app.get('/get-messages', async (req, res) => {
-    const { sender, receiver } = req.query;
-
-    if (!sender || !receiver) {
-        return res.status(400).json({ error: 'Отправитель и получатель обязательны!' });
-    }
-
-    try {
-        // Запрос для получения сообщений
-        const result = await pool.query(`
-            SELECT 
-                sender, 
-                receiver, 
-                message, 
-                TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS timestamp
-            FROM messages
-            WHERE 
-                (sender = $1 AND receiver = $2) 
-                OR 
-                (sender = $2 AND receiver = $1)
-            ORDER BY timestamp ASC
-        `, [sender, receiver]); // Параметры для SQL-запроса
-
-        res.json(result.rows); // Отправляем полученные сообщения клиенту
-    } catch (error) {
-        console.error(error); // Логируем ошибку на сервере
-        res.status(500).json({ error: 'Ошибка получения сообщений!' }); // Отправляем ошибку клиенту
     }
 });
 
