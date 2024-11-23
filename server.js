@@ -60,17 +60,23 @@ wss.on('connection', (ws, req) => {
 
   console.log(`New connection: ${sender} -> ${receiver}`);
 
-  ws.on('message', (message) => {
+  ws.on('message', async (message) => {
     const msgData = JSON.parse(message);
     console.log('Received message:', msgData);
 
-    // Рассылаем сообщение всем клиентам, кроме отправителя
-    wss.clients.forEach(client => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(msgData));  // Отправляем сообщение всем подключенным
-      }
-    });
-  });
+    // Сохраняем сообщение в базе данных
+    try {
+        await pool.query(
+            `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
+            [msgData.sender, msgData.receiver, msgData.message]
+        );
+
+        // Рассылаем сообщение всем подключенным клиентам
+        broadcastMessage(msgData);
+    } catch (error) {
+        console.error('Ошибка при сохранении сообщения в базе данных:', error);
+    }
+});
 });
 
 console.log("WebSocket server running on ws://localhost:8080");
