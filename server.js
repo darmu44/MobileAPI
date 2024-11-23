@@ -88,8 +88,22 @@ wss.on('connection', (ws, req) => {
 
 console.log("WebSocket server running on ws://localhost:8080");
 
-// Функция для отправки сообщений всем клиентам
+let lastSentMessages = new Set();
+
 function broadcastMessage(data) {
+    // Формируем уникальный идентификатор сообщения (можно использовать, например, timestamp + sender + receiver)
+    const messageId = `${data.timestamp}-${data.sender}-${data.receiver}-${data.message}`;
+    
+    // Если сообщение уже отправлялось, не отправляем его снова
+    if (lastSentMessages.has(messageId)) {
+        console.log('Сообщение уже отправлено:', messageId);
+        return;
+    }
+    
+    // Добавляем ID сообщения в Set
+    lastSentMessages.add(messageId);
+    
+    // Рассылаем сообщение всем подключенным клиентам
     clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify(data));
