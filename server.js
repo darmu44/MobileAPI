@@ -52,14 +52,14 @@ const pool = new Pool({
 app.post('/register', async (req, res) => {
     const { login, password } = req.body;
     try {
-        const result = await pool.query('SELECT * FROM "user" WHERE login = $1', [login]);
+        const result = await pool.query(`SELECT * FROM "user" WHERE login = $1`, [login]);
         if (result.rows.length > 0) {
             return res.status(400).json({ error: 'Такой логин уже существует!' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const insertResult = await pool.query(
-            'INSERT INTO "user" (login, password, is_profile_complete) VALUES ($1, $2, $3) RETURNING id',
+            `INSERT INTO "user" (login, password, is_profile_complete) VALUES ($1, $2, $3) RETURNING id`,
             [login, hashedPassword, false]
         );
         const userId = insertResult.rows[0].id;
@@ -80,7 +80,7 @@ app.post('/create-profile', uploadAvatar.single('avatar'), async (req, res) => {
 
     try {
         const updateResult = await pool.query(
-            'UPDATE "user" SET name = $1, description = $2, avatar_url = $3, is_profile_complete = $4 WHERE login = $5 RETURNING *',
+            `UPDATE "user" SET name = $1, description = $2, avatar_url = $3, is_profile_complete = $4 WHERE login = $5 RETURNING *`,
             [name, description, avatarUrl, true, login]
         );
 
@@ -97,14 +97,14 @@ app.post('/create-profile', uploadAvatar.single('avatar'), async (req, res) => {
 app.post('/get-profile', async (req, res) => {
     const { login } = req.body;
     try {
-      const result = await pool.query('SELECT login, name, description, avatar_url FROM "user" WHERE login = $1', [login]);
+      const result = await pool.query(`SELECT login, name, description, avatar_url FROM "user" WHERE login = $1`, [login]);
   
       if (result.rowCount === 0) {
         return res.status(404).json({ error: 'Пользователь не найден' });
       }
   
       // Получаем полный URL для аватара
-      const avatarUrl = result.rows[0].avatar_url ? http://79.174.95.226:3000/images/avatars/${result.rows[0].avatar_url} : null;
+      const avatarUrl = result.rows[0].avatar_url ? `http://79.174.95.226:3000/images/avatars/${result.rows[0].avatar_url}` : null;
   
       res.json({
         login: result.rows[0].login,
@@ -121,7 +121,7 @@ app.post('/get-profile', async (req, res) => {
 app.post('/login', async (req, res) => {
     const { login, password } = req.body;
     try {
-        const result =  await pool.query('SELECT * FROM "user" WHERE login = $1', 
+        const result =  await pool.query(`SELECT * FROM "user" WHERE login = $1`, 
             [login]);
         const user = result.rows[0];
 
@@ -148,20 +148,20 @@ app.post('/create-post', uploadPost.single('image'), async (req, res) => {
     }
 
     try {
-        const userResult = await pool.query('SELECT id FROM "user" WHERE login = $1', [login]);
+        const userResult = await pool.query(`SELECT id FROM "user" WHERE login = $1`, [login]);
         if (userResult.rowCount === 0) {
             return res.status(404).json({ error: 'Пользователь не найден!' });
         }
         const userId = userResult.rows[0].id;
 
         const postResult = await pool.query(
-            'INSERT INTO post (date, description, image_url) VALUES (NOW(), $1, $2) RETURNING id_post',
+            `INSERT INTO post (date, description, image_url) VALUES (NOW(), $1, $2) RETURNING id_post`,
             [description, imageUrl]
         );
         const postId = postResult.rows[0].id_post;
 
         await pool.query(
-            'INSERT INTO user_post (id_user, id_post) VALUES ($1, $2)',
+            `INSERT INTO user_post (id_user, id_post) VALUES ($1, $2)`,
             [userId, postId]
         );
 
@@ -263,7 +263,7 @@ app.post('/edit-profile', uploadAvatar.single('avatar'), async (req, res) => {
 
     try {
         const updateResult = await pool.query(
-            'UPDATE "user" SET name = $1, description = $2, avatar_url = COALESCE($3, avatar_url), is_profile_complete = $4 WHERE login = $5 RETURNING *',
+            `UPDATE "user" SET name = $1, description = $2, avatar_url = COALESCE($3, avatar_url), is_profile_complete = $4 WHERE login = $5 RETURNING *`,
             [name, description, avatarUrl, true, login]
         );
 
@@ -287,7 +287,7 @@ app.post('/send-message', async (req, res) => {
 
     try {
         await pool.query(
-            'INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())',
+            `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
             [sender, receiver, message]
         );
         res.status(201).json({ message: 'Сообщение отправлено!' });
