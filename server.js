@@ -273,7 +273,7 @@ app.get('/get-posts', async (req, res) => {
             FROM post p
             JOIN user_post up ON up.id_post = p.id_post
             JOIN "user" u ON u.id = up.id_user
-            ORDER BY p.date ASC
+            ORDER BY p.id_post ASC
         `);
 
         if (result.rowCount === 0) {
