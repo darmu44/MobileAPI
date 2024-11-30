@@ -50,35 +50,32 @@ const wss = new WebSocket.Server({ port: 8080 });
 let clients = [];
 
 wss.on('connection', (ws, req) => {
-    const sender = new URLSearchParams(req.url.split('?')[1]).get('sender');
-    const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
-    console.log(`New connection: ${sender} -> ${receiver}`);
-    
-    ws.sender = sender;  // Сохраняем отправителя в объект WebSocket
-    ws.receiver = receiver;  // Сохраняем получателя
+  const sender = new URLSearchParams(req.url.split('?')[1]).get('sender');
+  const receiver = new URLSearchParams(req.url.split('?')[1]).get('receiver');
+  console.log(`New connection: ${sender} -> ${receiver}`);
 
-    clients.push(ws);
+  clients.push(ws);
 
-    ws.on('message', async (message) => {
-        const msgData = JSON.parse(message);
-        console.log('Received message:', msgData);
+  ws.on('message', async (message) => {
+    const msgData = JSON.parse(message);
+    console.log('Received message:', msgData);
 
-        // Сохранение сообщения
-        try {
-            await pool.query(
-                `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
-                [msgData.sender, msgData.receiver, msgData.message]
-            );
+    // Сохранение сообщения
+    try {
+        await pool.query(
+            `INSERT INTO messages (sender, receiver, message, timestamp) VALUES ($1, $2, $3, NOW())`,
+            [msgData.sender, msgData.receiver, msgData.message]
+        );
 
-            broadcastMessage(msgData);
-        } catch (error) {
-            console.error('Ошибка при сохранении сообщения в базе данных:', error);
-        }
-    });
+        broadcastMessage(msgData);
+    } catch (error) {
+        console.error('Ошибка при сохранении сообщения в базе данных:', error);
+    }
+  });
 
-    ws.on('close', () => {
-        clients = clients.filter(client => client !== ws);
-    });
+  ws.on('close', () => {
+    clients = clients.filter(client => client !== ws);
+  });
 });
 
 console.log("WebSocket запущен, путь://localhost:8080");
@@ -87,16 +84,16 @@ let lastSentMessages = new Set();
 
 function broadcastMessage(data) {
     const messageId = `${data.timestamp}-${data.sender}-${data.receiver}-${data.message}`;
-    
+
     if (lastSentMessages.has(messageId)) {
         console.log('Сообщение уже отправлено!:', messageId);
         return;
     }
-    
+
     lastSentMessages.add(messageId);
 
     clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN && client.receiver === data.receiver) {
+        if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify(data));
         }
     });
