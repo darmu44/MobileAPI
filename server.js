@@ -39,11 +39,11 @@ app.use(cors());
 const IMAGE_FOLDER = path.join(__dirname, 'images');
 
 const pool = new Pool({
-    user: '2024_psql_d_usr',
-    host: '5.183.188.132',
+    user: 'MobileDatabase',
+    host: '79.174.89.57',
     database: '2024_psql_dan',
-    password: 'hq7L54hC9LEc7YzC',
-    port: 5432,
+    password: '3YEG6v*/CY6FdtT8bIdhD)ar',
+    port: 16988,
 });
 
 const wss = new WebSocket.Server({ port: 8080 });
